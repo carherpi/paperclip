@@ -183,6 +183,10 @@ describe("managed install commands", () => {
       ["pnpm", "--filter", "@paperclipai/server", "run", "prepare:ui-dist"],
     ]));
     expect(runCommand.mock.calls.filter(([command, args]) => command === "corepack" && args.includes("pack"))).toHaveLength(2);
+    expect(runCommand.mock.calls).toContainEqual(expect.arrayContaining([
+      process.execPath,
+      [expect.stringMatching(/release-package-map\.mjs$/), "set-version", "0.3.1"],
+    ]));
     expect(runCommand.mock.calls.filter(([command, args]) => command === process.execPath && args[0]?.endsWith("prepare-bundled-package.mjs"))).toHaveLength(1);
     expect(runCommand.mock.calls.filter(([command, args]) => command === "npm" && args[0] === "pack")).toHaveLength(2);
     expect(runCommand.mock.calls.filter(([command, args]) =>
