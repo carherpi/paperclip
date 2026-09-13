@@ -10,6 +10,7 @@ projects, tasks, agents, and adapters are upstream Paperclip features.
 ## What you need
 
 - macOS
+- Node.js 24.11 or newer (the desktop service is the supported Node CLI)
 - An authenticated Codex CLI or Claude Code CLI subscription
 - The Paperclip desktop app bundle, or this repository if you are building it
 
@@ -18,7 +19,9 @@ provider API keys to Paperclip configuration for the desktop instance.
 
 ## First launch
 
-1. Open `Paperclip.app`.
+1. Open `Paperclip.app`. On a new Mac user profile, it finds the managed
+   Agentic Paperclip CLI or installs it from this fork using `npx`. Keep the
+   window open while this first setup completes.
 2. Enter an organization name that can cover all of your work, such as your
    name, studio, or company. Projects are created inside that organization.
 3. Complete the Paperclip onboarding flow.
@@ -48,9 +51,19 @@ copied into Paperclip.
 
 ## If Paperclip does not open
 
-Wait a short time after launching it, then reload the window with `Command-R`.
-The local server starts before the dashboard loads. If the CLI is installed,
-these commands show and control the background service:
+Paperclip shows a local recovery screen instead of an empty window when the
+CLI or service cannot start. It includes the exact failure reason. Install the
+current Node.js LTS if Node 24.11 or newer is absent, then run:
+
+```sh
+npx --yes --package paperclipai@latest paperclipai install --yes \
+  --repo carherpi/paperclip --ref master
+```
+
+The app only uses the managed CLI built from `carherpi/paperclip`, which carries
+the desktop subscription-only policy; it does not use a checkout-local
+development shim or an arbitrary global `paperclipai` install. These commands
+show and control the background service:
 
 ```sh
 paperclipai service status --instance desktop
@@ -58,6 +71,13 @@ paperclipai service logs --instance desktop
 paperclipai service stop --instance desktop
 paperclipai service start --instance desktop
 ```
+
+If a service was interrupted, start it with the final command and reopen
+`Paperclip.app`. Do not use `paperclipai run` for this instance: the managed
+LaunchAgent prevents two server processes from writing the same desktop data.
+Opening and closing `Paperclip.app` reconciles the service definition but does
+not restart a healthy service, so active work continues across window closes
+and reopens.
 
 ## Backing up or moving to another Mac
 
@@ -87,6 +107,11 @@ pnpm install
 pnpm --dir desktop --ignore-workspace install
 pnpm --dir desktop --ignore-workspace build
 ```
+
+For source development only, `PAPERCLIP_DESKTOP_CLI` can point to an explicit
+CLI binary. Release builds locate a normal installed CLI instead. The build
+requires the Xcode Command Line Tools, Rust, and Node.js 24.11 or newer; when a
+runtime prerequisite is missing at launch, the app shows its recovery screen.
 
 The built app bundle is created under
 `desktop/src-tauri/target/release/bundle/macos/`.

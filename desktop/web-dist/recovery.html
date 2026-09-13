@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Paperclip needs attention</title>
+    <style>
+      body { background: #101827; color: #e5edf8; font: 16px -apple-system, BlinkMacSystemFont, sans-serif; margin: 0; }
+      main { margin: 12vh auto; max-width: 42rem; padding: 2rem; }
+      h1 { font-size: 1.7rem; } p, li { line-height: 1.55; }
+      code { background: #202d40; border-radius: .3rem; padding: .15rem .35rem; }
+      #reason { background: #202d40; border-radius: .5rem; padding: 1rem; white-space: pre-wrap; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Paperclip could not open its local service</h1>
+      <p id="reason">Checking the local service…</p>
+      <p>Paperclip keeps work in <code>~/.paperclip/instances/desktop</code>; this recovery screen does not change it.</p>
+      <ol>
+        <li>Install Node.js 24.11 or newer if it is not already installed.</li>
+        <li>In Terminal, run <code>npx paperclipai@latest install --yes</code>.</li>
+        <li>Run <code>paperclipai service start --instance desktop</code>, then reopen this app.</li>
+      </ol>
+      <p>For diagnostics, run <code>paperclipai service status --instance desktop</code> or <code>paperclipai service logs --instance desktop</code>.</p>
+    </main>
+    <script>
+      document.querySelector('#reason').textContent = new URLSearchParams(location.search).get('reason') || 'Unknown startup error.';
+    </script>
+  </body>
+</html>

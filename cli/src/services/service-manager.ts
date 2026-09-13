@@ -327,7 +327,16 @@ export class LaunchdServiceManager implements ServiceManager {
     if (changed) await this.runner("launchctl", ["bootout", `${this.domain}/${this.serviceName}`]).catch(() => undefined);
     await this.runner("launchctl", [options.startOnLogin ? "enable" : "disable", `${this.domain}/${this.serviceName}`]);
     if (options.startOnLogin || options.startNow) {
-      await this.runner("launchctl", ["bootstrap", this.domain, this.definitionPath]).catch(async () => this.runner("launchctl", ["kickstart", "-k", `${this.domain}/${this.serviceName}`]));
+      // A desktop launch calls `service install` to reconcile its definition.
+      // Do not kickstart an already healthy job: that restarts active work each
+      // time the native window is opened. A changed definition was booted out
+      // above, so bootstrap is still needed in that case.
+      const status = changed ? null : await this.status();
+      if (!status?.active) {
+        await this.runner("launchctl", ["bootstrap", this.domain, this.definitionPath]).catch(async () => {
+          await this.runner("launchctl", ["kickstart", "-k", `${this.domain}/${this.serviceName}`]);
+        });
+      }
     }
     if (!options.startNow) await this.stop().catch(() => undefined);
     return { changed };

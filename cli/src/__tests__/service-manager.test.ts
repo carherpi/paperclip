@@ -137,6 +137,26 @@ describe("service adapter dispatch", () => {
 });
 
 describe("launchd lifecycle", () => {
+  it("leaves a healthy service running when reconciling its definition", async () => {
+    const userHome = await temporaryDirectory();
+    const calls: string[] = [];
+    const runner: CommandRunner = async (command, args) => {
+      calls.push([command, ...args].join(" "));
+      if (args[0] === "print") return { stdout: "\npid = 42\n", stderr: "" };
+      if (args[0] === "print-disabled") return { stdout: "", stderr: "" };
+      return { stdout: "", stderr: "" };
+    };
+    const manager = new LaunchdServiceManager("desktop", runner, path.join(userHome, ".paperclip"), path.join(userHome, ".local/bin/paperclipai"), userHome);
+    await fs.mkdir(path.dirname(manager.definitionPath), { recursive: true });
+    await fs.writeFile(manager.definitionPath, manager.renderDefinition(), "utf8");
+
+    await manager.install({ startNow: true, startOnLogin: true });
+
+    expect(calls.some((call) => call.includes("launchctl bootout"))).toBe(false);
+    expect(calls.some((call) => call.includes("launchctl bootstrap"))).toBe(false);
+    expect(calls.some((call) => call.includes("launchctl kickstart"))).toBe(false);
+  });
+
   it("starts without changing the saved login preference", async () => {
     const userHome = await temporaryDirectory();
     const calls: string[] = [];
