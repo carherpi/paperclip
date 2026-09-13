@@ -242,6 +242,22 @@ function gitBuildEnv(extra: NodeJS.ProcessEnv = {}): NodeJS.ProcessEnv {
   return env;
 }
 
+const GIT_INSTALL_RUNTIME_SKILL_TARGETS = [
+  "server",
+  "packages/adapters/claude-local",
+  "packages/adapters/codex-local",
+] as const;
+
+export function prepareGitInstallRuntimeAssets(checkoutPath: string): void {
+  const sourceSkills = path.join(checkoutPath, "skills");
+
+  for (const packagePath of GIT_INSTALL_RUNTIME_SKILL_TARGETS) {
+    const destinationSkills = path.join(checkoutPath, packagePath, "skills");
+    fs.rmSync(destinationSkills, { recursive: true, force: true });
+    fs.cpSync(sourceSkills, destinationSkills, { recursive: true });
+  }
+}
+
 export async function installGitPayload(repo: string, sha: string, runCommand: CommandRunner, paths = resolveInstallStorePaths()): Promise<{ payloadPath: string; reused: boolean; version: string }> {
   const identifier = sha.slice(0, 12);
   const payloadPath = payloadPathFor(paths, "git", identifier);
@@ -282,6 +298,7 @@ export async function installGitPayload(repo: string, sha: string, runCommand: C
     // self-contained static UI before prepare-bundled-package copies ui-dist.
     await runCommand("corepack", ["pnpm", "--filter", "@paperclipai/server", "run", "prepare:ui-dist"], { cwd: checkoutPath, env: buildEnv(), maxBuffer: 32 * 1024 * 1024 });
     await runCommand("corepack", ["pnpm", "-r", "--filter", "@paperclipai/server...", "--if-present", "run", "build"], { cwd: checkoutPath, env: buildEnv(), maxBuffer: 32 * 1024 * 1024 });
+    prepareGitInstallRuntimeAssets(checkoutPath);
     const metadata = JSON.parse(fs.readFileSync(path.join(checkoutPath, "cli", "package.json"), "utf8")) as { version: string };
     const workspacePackages = resolveGitInstallWorkspacePackages(checkoutPath);
     for (const [index, workspacePackage] of workspacePackages.entries()) {
