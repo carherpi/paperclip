@@ -58,10 +58,41 @@ fn command_path_candidates(name: &str) -> Vec<PathBuf> {
     candidates
 }
 
-fn executable_path(name: &str) -> Option<PathBuf> {
-    command_path_candidates(name)
+fn node_version_is_supported(version: &str) -> bool {
+    let mut components = version.trim().trim_start_matches('v').split('.');
+    let major = components.next().and_then(|part| part.parse::<u32>().ok());
+    let minor = components.next().and_then(|part| part.parse::<u32>().ok());
+    matches!((major, minor), (Some(major), Some(minor)) if major > 24 || (major == 24 && minor >= 11))
+}
+
+fn npx_with_supported_node() -> Result<PathBuf, StartupFailure> {
+    let mut detected_versions = Vec::new();
+    for npx in command_path_candidates("npx") {
+        if !npx.is_file() {
+            continue;
+        }
+        let Some(node) = npx.parent().map(|directory| directory.join("node")) else {
+            continue;
+        };
+        let Ok(output) = Command::new(&node).arg("--version").output() else {
+            continue;
+        };
+        if !output.status.success() {
+            continue;
+        }
+        let version = String::from_utf8_lossy(&output.stdout).trim().to_owned();
+        if node_version_is_supported(&version) {
+            return Ok(npx);
+        }
+        detected_versions.push(version);
+    }
+    let found = detected_versions
         .into_iter()
-        .find(|candidate| candidate.is_file())
+        .find(|version| !version.is_empty());
+    Err(StartupFailure::MissingPrerequisites(match found {
+        Some(version) => format!("Paperclip needs Node.js 24.11 or newer, but Finder found Node.js {version}. Install Node 24 with your version manager, then reopen Paperclip."),
+        None => "Paperclip needs Node.js 24.11 or newer and npm/npx. Install the current Node.js LTS, then open Paperclip again.".into(),
+    }))
 }
 
 fn managed_desktop_cli() -> Option<PathBuf> {
@@ -111,9 +142,7 @@ fn paperclip_cli() -> Result<PathBuf, StartupFailure> {
         return Ok(cli);
     }
 
-    let npx = executable_path("npx").ok_or_else(|| StartupFailure::MissingPrerequisites(
-        "Paperclip needs Node.js 24.11 or newer and npm/npx. Install the current Node.js LTS, then open Paperclip again.".into(),
-    ))?;
+    let npx = npx_with_supported_node()?;
     let output = command_with_desktop_environment(npx)
         .args([
             "--yes",
@@ -232,7 +261,7 @@ fn main() {
 
 #[cfg(test)]
 mod tests {
-    use super::percent_encode;
+    use super::{node_version_is_supported, percent_encode};
 
     #[test]
     fn percent_encodes_recovery_messages_for_an_app_url() {
@@ -240,5 +269,14 @@ mod tests {
             percent_encode("service failed: 127.0.0.1"),
             "service%20failed%3A%20127.0.0.1"
         );
+    }
+
+    #[test]
+    fn requires_node_24_11_or_newer() {
+        assert!(!node_version_is_supported("v22.21.0"));
+        assert!(!node_version_is_supported("v24.10.9"));
+        assert!(node_version_is_supported("v24.11.0"));
+        assert!(node_version_is_supported("v24.21.0"));
+        assert!(node_version_is_supported("v25.0.0"));
     }
 }
