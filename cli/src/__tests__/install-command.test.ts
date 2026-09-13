@@ -6,6 +6,7 @@ import {
   type CommandRunner,
   installCommand,
   installGitPayload,
+  prepareGitInstallRuntimeAssets,
   resolveGitHubRef,
   resolveGitInstallRequest,
   resolveGitInstallWorkspacePackages,
@@ -103,6 +104,20 @@ describe("managed install commands", () => {
     await expect(installGitPayload("paperclipai/paperclip", sha, runCommand, paths)).resolves.toEqual({ payloadPath, reused: true, version: "0.3.1" });
     expect(runCommand).toHaveBeenCalledOnce();
     expect(runCommand.mock.calls[0]?.[0]).toBe(process.execPath);
+  });
+
+  it("stages shipped skills for every runtime package used by git installs", () => {
+    const checkout = path.join(root, "checkout");
+    const skillPath = path.join("paperclip", "SKILL.md");
+    fs.mkdirSync(path.join(checkout, "skills", "paperclip"), { recursive: true });
+    fs.writeFileSync(path.join(checkout, "skills", skillPath), "# Paperclip\n");
+
+    prepareGitInstallRuntimeAssets(checkout);
+
+    for (const packageDir of ["server", "packages/adapters/claude-local", "packages/adapters/codex-local"]) {
+      expect(fs.readFileSync(path.join(checkout, packageDir, "skills", skillPath), "utf8"))
+        .toBe("# Paperclip\n");
+    }
   });
 
   const createGitCheckoutRunCommand = (sha: string) =>
