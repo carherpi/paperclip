@@ -77,8 +77,21 @@ fn managed_desktop_cli() -> Option<PathBuf> {
 }
 
 fn command_with_desktop_environment(binary: impl AsRef<Path>) -> Command {
-    let mut command = Command::new(binary.as_ref());
+    let binary = binary.as_ref();
+    let mut command = Command::new(binary);
     command.env("PAPERCLIP_SUBSCRIPTION_ONLY", "1");
+    // Finder does not inherit a shell's NVM/Volta/asdf PATH. The selected CLI
+    // or npx may have a `#!/usr/bin/env node` shebang, so keep its own Node
+    // directory first when it launches child processes.
+    if let Some(binary_directory) = binary.parent() {
+        let mut paths = vec![binary_directory.to_path_buf()];
+        if let Some(existing_path) = env::var_os("PATH") {
+            paths.extend(env::split_paths(&existing_path));
+        }
+        if let Ok(path) = env::join_paths(paths) {
+            command.env("PATH", path);
+        }
+    }
     command
 }
 
