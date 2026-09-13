@@ -1,0 +1,13 @@
+[package]
+name = "paperclip-desktop"
+version = "0.1.0"
+description = "Subscription-only Paperclip desktop host"
+edition = "2021"
+license = "MIT"
+
+[build-dependencies]
+tauri-build = { version = "=2.6.3", features = [] }
+
+[dependencies]
+serde = { version = "=1.0.228", features = ["derive"] }
+tauri = { version = "=2.11.5", features = [] }

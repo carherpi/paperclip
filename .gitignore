@@ -37,6 +37,11 @@ packages/db/seed-*.mjs
 # npm publish build artifacts
 cli/package.dev.json
 
+# Desktop build output and local development launcher
+desktop/src-tauri/target/
+desktop/src-tauri/gen/
+desktop/paperclipai-dev-shim
+
 # Build artifacts in src directories
 server/src/**/*.js
 server/src/**/*.js.map

@@ -193,6 +193,18 @@ function resolveCodexBillingType(env: Record<string, string>): "api" | "subscrip
   return hasNonEmptyEnvValue(env, "OPENAI_API_KEY") ? "api" : "subscription";
 }
 
+export function codexSubscriptionOnlyViolation(
+  config: Record<string, unknown>,
+  inheritedEnv: Record<string, string | undefined> = process.env,
+): string | null {
+  if (inheritedEnv.PAPERCLIP_SUBSCRIPTION_ONLY !== "1") return null;
+  const configuredEnv = parseObject(config.env);
+  const apiKey = configuredEnv.OPENAI_API_KEY ?? inheritedEnv.OPENAI_API_KEY;
+  return typeof apiKey === "string" && apiKey.trim().length > 0
+    ? "This desktop instance only permits Codex subscription authentication. Remove OPENAI_API_KEY and sign in with the official Codex CLI."
+    : null;
+}
+
 function resolveCodexBiller(env: Record<string, string>, billingType: "api" | "subscription"): string {
   const openAiCompatibleBiller = inferOpenAiCompatibleBiller(env, "openai");
   if (openAiCompatibleBiller === "openrouter") return "openrouter";
@@ -568,6 +580,17 @@ export async function ensureCodexSkillsInjected(
 }
 
 export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExecutionResult> {
+  const subscriptionOnlyViolation = codexSubscriptionOnlyViolation(ctx.config);
+  if (subscriptionOnlyViolation) {
+    return {
+      exitCode: 1,
+      signal: null,
+      timedOut: false,
+      errorCode: "subscription_only_auth_required",
+      errorMessage: subscriptionOnlyViolation,
+      resultJson: { executionRecovery: { kind: "bootstrap", providerWorkStarted: false } },
+    };
+  }
   const engineSelection = await resolveCodexExecutionEngineForRun(ctx);
   if (engineSelection.unavailableReason) {
     return {

@@ -124,7 +124,14 @@ export function launchdServiceName(instanceId: string): string {
   return instanceId === "default" ? "ing.paperclip.paperclipai" : `ing.paperclip.paperclipai.${instanceId}`;
 }
 
-export function renderSystemdUnit(input: { instanceId: string; shimPath: string; homeDir: string }): string {
+type ServiceDefinitionInput = {
+  instanceId: string;
+  shimPath: string;
+  homeDir: string;
+  subscriptionOnly?: boolean;
+};
+
+export function renderSystemdUnit(input: ServiceDefinitionInput): string {
   return `[Unit]
 Description=Paperclip AI (${escapeSystemd(input.instanceId)})
 After=network.target
@@ -138,7 +145,7 @@ ExecStart="${escapeSystemd(input.shimPath)}" run --instance "${escapeSystemd(inp
 Environment="PAPERCLIP_SERVICE_MANAGED=1"
 Environment="PAPERCLIP_INSTANCE_ID=${escapeSystemd(input.instanceId)}"
 Environment="PAPERCLIP_HOME=${escapeSystemd(input.homeDir)}"
-WorkingDirectory=%h
+${input.subscriptionOnly ? 'Environment="PAPERCLIP_SUBSCRIPTION_ONLY=1"\n' : ""}WorkingDirectory=%h
 Restart=always
 RestartSec=5
 TimeoutStopSec=300
@@ -148,7 +155,7 @@ WantedBy=default.target
 `;
 }
 
-export function renderLaunchdPlist(input: { instanceId: string; shimPath: string; homeDir: string; stdoutPath: string; stderrPath: string }): string {
+export function renderLaunchdPlist(input: ServiceDefinitionInput & { stdoutPath: string; stderrPath: string }): string {
   const label = launchdServiceName(input.instanceId);
   return `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -164,6 +171,7 @@ export function renderLaunchdPlist(input: { instanceId: string; shimPath: string
     <key>PAPERCLIP_SERVICE_MANAGED</key><string>1</string>
     <key>PAPERCLIP_INSTANCE_ID</key><string>${escapeXml(input.instanceId)}</string>
     <key>PAPERCLIP_HOME</key><string>${escapeXml(input.homeDir)}</string>
+    ${input.subscriptionOnly ? "<key>PAPERCLIP_SUBSCRIPTION_ONLY</key><string>1</string>" : ""}
   </dict>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
@@ -212,7 +220,12 @@ export class SystemdServiceManager implements ServiceManager {
   }
 
   renderDefinition(): string {
-    return renderSystemdUnit({ instanceId: this.instanceId, shimPath: this.shimPath, homeDir: this.homeDir });
+    return renderSystemdUnit({
+      instanceId: this.instanceId,
+      shimPath: this.shimPath,
+      homeDir: this.homeDir,
+      subscriptionOnly: process.env.PAPERCLIP_SUBSCRIPTION_ONLY === "1",
+    });
   }
 
   async installedExecutablePath(): Promise<string | null> {
@@ -289,7 +302,16 @@ export class LaunchdServiceManager implements ServiceManager {
     this.stderrPath = path.join(logDir, "service.err.log");
   }
 
-  renderDefinition(): string { return renderLaunchdPlist({ instanceId: this.instanceId, shimPath: this.shimPath, homeDir: this.homeDir, stdoutPath: this.stdoutPath, stderrPath: this.stderrPath }); }
+  renderDefinition(): string {
+    return renderLaunchdPlist({
+      instanceId: this.instanceId,
+      shimPath: this.shimPath,
+      homeDir: this.homeDir,
+      stdoutPath: this.stdoutPath,
+      stderrPath: this.stderrPath,
+      subscriptionOnly: process.env.PAPERCLIP_SUBSCRIPTION_ONLY === "1",
+    });
+  }
 
   async installedExecutablePath(): Promise<string | null> {
     try {

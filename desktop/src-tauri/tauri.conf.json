@@ -1,0 +1,19 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Paperclip",
+  "version": "0.1.0",
+  "identifier": "ing.paperclip.desktop",
+  "build": {
+    "frontendDist": "../web-dist"
+  },
+  "app": {
+    "windows": [],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["app"]
+  }
+}

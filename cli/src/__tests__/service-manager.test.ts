@@ -18,6 +18,7 @@ const temporaryDirectories: string[] = [];
 afterEach(async () => {
   await Promise.all(temporaryDirectories.splice(0).map((directory) => fs.rm(directory, { recursive: true, force: true })));
   delete process.env.PAPERCLIP_SERVICE_MANAGED;
+  delete process.env.PAPERCLIP_SUBSCRIPTION_ONLY;
 });
 
 async function temporaryDirectory(): Promise<string> {
@@ -62,6 +63,20 @@ describe("service definition generation", () => {
     expect(plist).toContain("<key>RunAtLoad</key><true/>");
     expect(plist).toContain("<key>KeepAlive</key><true/>");
     expect(plist).toContain("service.err.log");
+  });
+
+  it("persists the subscription-only policy without provider credentials", () => {
+    const plist = renderLaunchdPlist({
+      instanceId: "desktop",
+      shimPath: "/Users/alice/.local/bin/paperclipai",
+      homeDir: "/Users/alice/.paperclip",
+      stdoutPath: "/Users/alice/.paperclip/instances/desktop/logs/service.log",
+      stderrPath: "/Users/alice/.paperclip/instances/desktop/logs/service.err.log",
+      subscriptionOnly: true,
+    });
+    expect(plist).toContain("PAPERCLIP_SUBSCRIPTION_ONLY");
+    expect(plist).not.toContain("OPENAI_API_KEY");
+    expect(plist).not.toContain("ANTHROPIC_API_KEY");
   });
 });
 

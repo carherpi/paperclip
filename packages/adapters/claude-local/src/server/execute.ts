@@ -168,6 +168,26 @@ function resolveClaudeBillingType(env: Record<string, string>): "api" | "subscri
   return hasNonEmptyEnvValue(env, "ANTHROPIC_API_KEY") ? "api" : "subscription";
 }
 
+export function claudeSubscriptionOnlyViolation(
+  config: Record<string, unknown>,
+  inheritedEnv: Record<string, string | undefined> = process.env,
+): string | null {
+  if (inheritedEnv.PAPERCLIP_SUBSCRIPTION_ONLY !== "1") return null;
+  const configuredEnv = parseObject(config.env);
+  const mergedEnv = { ...inheritedEnv, ...configuredEnv };
+  const paidCredential = [
+    "ANTHROPIC_API_KEY",
+    "ANTHROPIC_AUTH_TOKEN",
+    "ANTHROPIC_BEDROCK_BASE_URL",
+    "AWS_ACCESS_KEY_ID",
+    "GOOGLE_APPLICATION_CREDENTIALS",
+  ].find((key) => typeof mergedEnv[key] === "string" && mergedEnv[key].trim().length > 0);
+  const paidRuntime = mergedEnv.CLAUDE_CODE_USE_BEDROCK === "1" || mergedEnv.CLAUDE_CODE_USE_BEDROCK === "true";
+  return paidCredential || paidRuntime
+    ? "This desktop instance only permits Claude subscription authentication. Remove API or cloud-runtime credentials and sign in with the official Claude Code CLI."
+    : null;
+}
+
 async function buildClaudeRuntimeConfig(input: ClaudeExecutionInput): Promise<ClaudeRuntimeConfig> {
   const { runId, agent, config, context, runtimeCommandSpec, executionTarget, authToken } = input;
   const onLog = input.onLog ?? (async () => {});
@@ -402,6 +422,17 @@ export async function runClaudeLogin(input: {
 }
 
 export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExecutionResult> {
+  const subscriptionOnlyViolation = claudeSubscriptionOnlyViolation(ctx.config);
+  if (subscriptionOnlyViolation) {
+    return {
+      exitCode: 1,
+      signal: null,
+      timedOut: false,
+      errorCode: "subscription_only_auth_required",
+      errorMessage: subscriptionOnlyViolation,
+      resultJson: { executionRecovery: { kind: "bootstrap", providerWorkStarted: false } },
+    };
+  }
   const engineSelection = await resolveClaudeExecutionEngineForRun(ctx);
   if (engineSelection.unavailableReason) {
     return {
